@@ -4,8 +4,17 @@ const { Server } = require('socket.io');
 const axios = require('axios');
 
 const app = express();
+app.use(express.json());
+
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+const io = new Server(server, {
+    cors: {
+        origin: "*"
+    }
+});
+
+const API_BASE = "https://yourdomain.infinityfreeapp.com/practice/chat-api";
 
 let onlineUsers = {};
 
@@ -22,15 +31,15 @@ io.on('connection', socket => {
     // ===============================
     socket.on('loadConversation', data => {
 
-        axios.get(`http://localhost/practice/chat-api/get-messages.php?user_id=${userId}&receiver_id=${data.receiver_id}`)
+        axios.get(`${API_BASE}/get-messages.php?user_id=${userId}&receiver_id=${data.receiver_id}`)
             .then(res => {
                 socket.emit('conversationMessages', res.data.messages);
             })
-            .catch(err => console.log(err.message));
+            .catch(err => console.log("Load error:", err.message));
     });
 
     // ===============================
-    // SEND MESSAGE (REAL-TIME)
+    // SEND MESSAGE
     // ===============================
     socket.on('sendMessage', data => {
 
@@ -40,23 +49,22 @@ io.on('connection', socket => {
             message: data.message
         };
 
-        axios.post('http://localhost/practice/chat-api/send-message.php', payload)
+        axios.post(`${API_BASE}/send-message.php`, payload)
             .then(res => {
 
                 if (res.data.status !== 'success') return;
 
                 const msg = res.data.message;
 
-                // Send to sender
                 socket.emit('newMessage', msg);
 
-                // Send to receiver if online
                 if (onlineUsers[msg.receiver_id]) {
-                    io.to(onlineUsers[msg.receiver_id]).emit('newMessage', msg);
+                    io.to(onlineUsers[msg.receiver_id])
+                        .emit('newMessage', msg);
                 }
 
             })
-            .catch(err => console.log(err.message));
+            .catch(err => console.log("Send error:", err.message));
     });
 
     // ===============================
@@ -76,4 +84,8 @@ io.on('connection', socket => {
 
 });
 
-server.listen(3000, () => console.log("Messenger Server Running"));
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () =>
+    console.log("Messenger Server Running on", PORT)
+);
+
